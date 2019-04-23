@@ -1,8 +1,9 @@
+import random
 import numpy as np
 from sklearn import datasets
 from sklearn.neighbors import DistanceMetric
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import ShuffleSplit, KFold, LeaveOneOut
+from sklearn.model_selection import KFold, LeaveOneOut
 
 def seq_deletion(knn,X,y):
     x_copy = X.tolist()
@@ -45,14 +46,23 @@ def evaluate(knn,v,selection=None):
     std = np.std(score)
     return mean,std
 
+def bootstrap(n,n_bootstraps=10,n_train=0.9):
+    n_train = int(n_train*n)
+    output = []
+    for _ in range(n_bootstraps):
+        train_idxs = [random.randint(0,n-1) for _ in range(n_train)]
+        test_idxs = [i for i in range(n) if not i in train_idxs]
+        output.append((train_idxs,test_idxs))
+    return output
+
 def run_knn(metrics,ks,selection=None):
     for k in ks:
         for metric in metrics:
             knn = KNeighborsClassifier(n_neighbors=k, metric=metric)
             
-            rs = ShuffleSplit(n_splits=10)
-            score = evaluate(knn,rs.split(x),selection)
-            print('ShuffleSplit',k,metric,score)
+            bs = bootstrap(len(x),n_bootstraps=10,n_train=0.9)
+            score = evaluate(knn,bs,selection)
+            print('Bootstrap',k,metric,score)
 
             kf = KFold(n_splits=10)
             score = evaluate(knn,kf.split(x),selection)
