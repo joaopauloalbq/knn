@@ -1,10 +1,11 @@
+import random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn import datasets
 from sklearn.neighbors import DistanceMetric
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import ShuffleSplit, KFold, LeaveOneOut
+from sklearn.model_selection import KFold, LeaveOneOut
 
 
 def seq_deletion(knn, X, y):
@@ -51,20 +52,30 @@ def evaluate(knn, v, selection=None):
     return mean, std
 
 
-def run_knn(metrics, ks, selection=None):
+def bootstrap(n,n_bootstraps=10,n_train=0.9):
+    n_train = int(n_train*n)
+    output = []
+    for _ in range(n_bootstraps):
+        train_idxs = [random.randint(0,n-1) for _ in range(n_train)]
+        test_idxs = [i for i in range(n) if not i in train_idxs]
+        output.append((train_idxs,test_idxs))
+    return output
+
+
+def run_knn(metrics,ks,selection=None):
     results = dict(k=[], metric=[], method=[], mean=[], std=[])
     for k in ks:
         for metric in metrics:
             results['k'].extend(3*[k])
             results['metric'].extend(3*[str(metric)])
             knn = KNeighborsClassifier(n_neighbors=k, metric=metric)
-
-            rs = ShuffleSplit(n_splits=10)
-            score = evaluate(knn, rs.split(x), selection)
-            results['method'].append('ShuffleSplit')
+            
+            bs = bootstrap(len(x),n_bootstraps=10,n_train=0.9)
+            score = evaluate(knn,bs,selection)
+            results['method'].append('Bootstrap')
             results['mean'].append(score[0])
             results['std'].append(score[1])
-            print('ShuffleSplit', k, metric, score)
+            print('Bootstrap',k,metric,score)
 
             kf = KFold(n_splits=10)
             score = evaluate(knn, kf.split(x), selection)
@@ -82,6 +93,25 @@ def run_knn(metrics, ks, selection=None):
     return pd.DataFrame.from_dict(results)
 
 
+def plot_results(results, type_):
+    groups = results.groupby(by=['method', 'k'])
+    for group in groups.groups:
+        method, k = group
+        idx = groups.groups[group]
+        data = results.iloc[idx]
+        ax = np.arange(len(idx))
+
+        plt.errorbar(ax, data['mean'], data['std'],
+                    linestyle='None', marker='o')
+        plt.xticks(ax, data['metric'])
+        plt.xlabel('Métrica de distância')
+        plt.ylabel('Performance')
+        plt.title('{}; k = {}'.format(method, k))
+        plt.savefig('{}-{}-{}.pdf'.format(method, k, type_), format='pdf')
+        plt.close()
+
+
+
 iris = datasets.load_iris()
 
 x = iris.data
@@ -93,7 +123,8 @@ Primeiro slide: variar k e variar amostragem
 '''
 metrics = ['euclidean']
 ks = [1, 2, 3, 4, 5]
-run_knn(metrics, ks)
+results = run_knn(metrics, ks)
+plot_results(results, 'slide1')
 
 '''
 Segundo slide: para um dado k: variar medidas de distância
@@ -102,16 +133,14 @@ e comparar com algoritmos iterativos
 metrics = ['euclidean', 'manhattan', 'canberra', 'braycurtis']
 ks = [3]
 results = run_knn(metrics, ks)
+plot_results(results, 'slide2')
 
-# metrics = ['euclidean']
-# print('seq_deletion')
-# results_deletion = run_knn(metrics, ks, seq_deletion)
+metrics = ['euclidean']
+print('seq_deletion')
+results_deletion = run_knn(metrics, ks, seq_deletion)
+plot_results(results_deletion, 'deletion')
 
-# print('seq_insertion')
-# results_insertion = run_knn(metrics, ks, seq_insertion)
+print('seq_insertion')
+results_insertion = run_knn(metrics, ks, seq_insertion)
+plot_results(results_insertion, 'insertion')
 
-groups = results.groupby(by='method')
-print(groups.groups.keys())
-plt.errorbar(results.index, results['mean'], results['std'],
-             linestyle='None', marker='o')
-plt.show()
