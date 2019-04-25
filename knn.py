@@ -11,17 +11,15 @@ from sklearn.model_selection import KFold, LeaveOneOut
 def seq_deletion(knn, X, y):
     x_copy = X.tolist()
     y_copy = y.tolist()
-    i = 0
     for x_i, y_i in zip(X, y):
-        x_copy = x_copy[:i]+x_copy[i+1:]
-        y_copy = y_copy[:i]+y_copy[i+1:]
+        x_copy = x_copy[1:]
+        y_copy = y_copy[1:]
         knn.fit(x_copy, y_copy)
         p = knn.predict([x_i])
         if p[0] != y_i:
-            x_copy = x_copy[:i]+[x_i]+x_copy[i:]
-            y_copy = y_copy[:i]+[y_i]+y_copy[i:]
-            i += 1
-        return x_copy, y_copy
+            x_copy.append(x_i)
+            y_copy.append(y_i)
+    return x_copy, y_copy
 
 
 def seq_insertion(knn, X, y):
@@ -46,7 +44,6 @@ def evaluate(knn, v, selection=None):
             X_train, y_train = selection(knn, X_train, y_train)
         knn.fit(X_train, y_train)
         score.append(knn.score(X_test, y_test))
-
     mean = np.mean(score)
     std = np.std(score)
     return mean, std
