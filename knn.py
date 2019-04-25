@@ -52,30 +52,30 @@ def evaluate(knn, v, selection=None):
     return mean, std
 
 
-def bootstrap(n,n_bootstraps=10,n_train=0.9):
+def bootstrap(n, n_bootstraps=10, n_train=0.9):
     n_train = int(n_train*n)
     output = []
     for _ in range(n_bootstraps):
-        train_idxs = [random.randint(0,n-1) for _ in range(n_train)]
+        train_idxs = [random.randint(0, n-1) for _ in range(n_train)]
         test_idxs = [i for i in range(n) if not i in train_idxs]
-        output.append((train_idxs,test_idxs))
+        output.append((train_idxs, test_idxs))
     return output
 
 
-def run_knn(metrics,ks,selection=None):
+def run_knn(metrics, ks, selection=None):
     results = dict(k=[], metric=[], method=[], mean=[], std=[])
     for k in ks:
         for metric in metrics:
             results['k'].extend(3*[k])
             results['metric'].extend(3*[str(metric)])
             knn = KNeighborsClassifier(n_neighbors=k, metric=metric)
-            
-            bs = bootstrap(len(x),n_bootstraps=10,n_train=0.9)
-            score = evaluate(knn,bs,selection)
+
+            bs = bootstrap(len(x), n_bootstraps=10, n_train=0.9)
+            score = evaluate(knn, bs, selection)
             results['method'].append('Bootstrap')
             results['mean'].append(score[0])
             results['std'].append(score[1])
-            print('Bootstrap',k,metric,score)
+            print('Bootstrap', k, metric, score)
 
             kf = KFold(n_splits=10)
             score = evaluate(knn, kf.split(x), selection)
@@ -94,22 +94,39 @@ def run_knn(metrics,ks,selection=None):
 
 
 def plot_results(results, type_):
-    groups = results.groupby(by=['method', 'k'])
+    assert type_ in ['slide1', 'slide2', 'deletion', 'insertion']
+
+    if type_ == 'slide1':
+        groups = results.groupby(by=['method', 'metric'])
+    elif type_ == 'slide2':
+        groups = results.groupby(by=['method', 'k'])
+    else:
+        groups = results.groupby(by=['metric', 'k'])
+
     for group in groups.groups:
-        method, k = group
+        attr1, attr2 = group
         idx = groups.groups[group]
         data = results.iloc[idx]
         ax = np.arange(len(idx))
 
         plt.errorbar(ax, data['mean'], data['std'],
-                    linestyle='None', marker='o')
-        plt.xticks(ax, data['metric'])
-        plt.xlabel('Métrica de distância')
-        plt.ylabel('Performance')
-        plt.title('{}; k = {}'.format(method, k))
-        plt.savefig('{}-{}-{}.pdf'.format(method, k, type_), format='pdf')
-        plt.close()
+                     linestyle='None', marker='o')
 
+        if type_ == 'slide1':
+            plt.xticks(ax, data['k'])
+            plt.xlabel('k')
+            plt.title('{}; Métrica de distância: {}'.format(attr1, attr2))
+        elif type_ == 'slide2':
+            plt.xticks(ax, data['metric'])
+            plt.xlabel('Métrica de distância')
+            plt.title('{}; k = {}'.format(attr1, attr2))
+        else:
+            plt.xticks(ax, data['method'])
+            plt.xlabel('Método de amostragem')
+            plt.title('Métrica de distância: {}; k = {}'.format(attr1, attr2))
+        plt.ylabel('Performance')
+        plt.savefig('{}-{}-{}.pdf'.format(attr1, attr2, type_), format='pdf')
+        plt.close()
 
 
 iris = datasets.load_iris()
@@ -143,4 +160,3 @@ plot_results(results_deletion, 'deletion')
 print('seq_insertion')
 results_insertion = run_knn(metrics, ks, seq_insertion)
 plot_results(results_insertion, 'insertion')
-
